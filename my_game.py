@@ -368,45 +368,29 @@ def is_valid_placement(board: list[list[int]], piece_name: str, x: int, rotation
     """Check if a piece can be placed at position x with given rotation"""
     shape = get_piece_shape(piece_name, rotation)
     
-    # Check each block of the piece
+    # Check if piece fits horizontally
     for dx, dy in shape:
         px = x + dx
-        py = BOARD_HEIGHT - 1  # Start from bottom
-        
-        # Check if piece fits horizontally
         if px < 0 or px >= BOARD_WIDTH:
             return False
-        
-        # Find where the piece would land
-        while py >= 0:
-            if board[px][py] != 0:
-                py -= 1
-            else:
-                break
-        
-        # Check if piece goes above board
-        if py < 0:
-            return False
     
-    # Find the minimum landing position for all blocks
-    landing_positions = []
+    # Find the lowest position where the piece can be placed
+    max_y = BOARD_HEIGHT
     for dx, dy in shape:
         px = x + dx
-        py = BOARD_HEIGHT - 1
-        
-        # Find landing position for this block
-        while py > 0 and board[px][py] != 0:
-            py -= 1
-        
-        # The block will land at py + dy (offset from base)
-        landing_y = py - dy
-        if landing_y < 0:
-            return False
-        
-        landing_positions.append((px, landing_y))
+        # Find the highest occupied cell in this column
+        for py in range(BOARD_HEIGHT):
+            if board[px][py] != 0:
+                max_y = min(max_y, py - dy - 1)
+                break
+        else:
+            # Column is empty, piece can fall to bottom
+            max_y = min(max_y, BOARD_HEIGHT - 1 - dy)
     
-    # Check if all landing positions are valid
-    for px, py in landing_positions:
+    # Check if all blocks of the piece can fit
+    for dx, dy in shape:
+        px = x + dx
+        py = max_y + dy
         if py < 0 or py >= BOARD_HEIGHT:
             return False
         if board[px][py] != 0:
@@ -419,22 +403,23 @@ def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, 
     """Place a piece on the board and return number of lines cleared"""
     shape = get_piece_shape(piece_name, rotation)
     
-    # Find landing position for each block
-    placed_blocks = []
+    # Find the lowest position where the piece can be placed
+    max_y = BOARD_HEIGHT
     for dx, dy in shape:
         px = x + dx
-        py = BOARD_HEIGHT - 1
-        
-        # Find where this block lands
-        while py > 0 and board[px][py] != 0:
-            py -= 1
-        
-        # Place the block at its final position considering the shape offset
-        final_y = py - dy
-        placed_blocks.append((px, final_y))
+        # Find the highest occupied cell in this column
+        for py in range(BOARD_HEIGHT):
+            if board[px][py] != 0:
+                max_y = min(max_y, py - dy - 1)
+                break
+        else:
+            # Column is empty, piece can fall to bottom
+            max_y = min(max_y, BOARD_HEIGHT - 1 - dy)
     
     # Place all blocks
-    for px, py in placed_blocks:
+    for dx, dy in shape:
+        px = x + dx
+        py = max_y + dy
         board[px][py] = player_id
     
     # Clear lines

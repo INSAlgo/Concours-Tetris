@@ -43,7 +43,7 @@ def get_piece_shape(piece_name, rotation):
 
 def is_valid_placement(board, piece_name, x, rotation):
     """Check if piece can be placed at position"""
-    shape = get_piece_shape(piece_name, x)
+    shape = get_piece_shape(piece_name, rotation)
     
     for dx, dy in shape:
         px = x + dx
