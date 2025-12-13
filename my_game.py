@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
-import argparse, asyncio, os, re, sys
+import argparse, asyncio, os, random, re, sys
 
 # Tetris game constants
 BOARD_WIDTH = 10
@@ -109,7 +109,7 @@ class Player(ABC):
                 await other_player.tell_move(move)
 
     @staticmethod
-    async def sanithize(userInput: str, **kwargs) -> tuple[ValidMove, None] | tuple[None, str]:
+    async def sanitize(userInput: str, **kwargs) -> tuple[ValidMove, None] | tuple[None, str]:
         """Parses raw user input text into an error message or a valid move
 
         Args:
@@ -209,7 +209,7 @@ class Human(Player):
             await Player.print(f"User did not respond in time (over {DISCORD_TIMEOUT}s)")
             return None, "timeout"
         # This is where the kwargs are usefull :
-        return await Human.sanithize(user_input, **kwargs)
+        return await Human.sanitize(user_input, **kwargs)
 
     async def tell_move(self, move: ValidInput):
         return super().tell_move(move)
@@ -337,7 +337,7 @@ class AI(Player):
             return None, "timeout"
         
         # This is where the kwargs are usefull :
-        return await AI.sanithize(progInput, **kwargs)
+        return await AI.sanitize(progInput, **kwargs)
 
     async def tell_move(self, move: ValidInput):
         if self.prog.stdin:
@@ -424,7 +424,8 @@ def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, 
     
     # Clear lines
     lines_cleared = 0
-    for y in range(BOARD_HEIGHT):
+    y = 0
+    while y < BOARD_HEIGHT:
         if all(board[x][y] != 0 for x in range(BOARD_WIDTH)):
             # Clear this line
             lines_cleared += 1
@@ -435,6 +436,9 @@ def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, 
             # Clear top line
             for x in range(BOARD_WIDTH):
                 board[x][0] = 0
+            # Don't increment y, check the same line again
+        else:
+            y += 1
     
     return lines_cleared
 
@@ -463,7 +467,6 @@ def render_board(board: list[list[int]], player_name: str) -> str:
 
 def get_next_piece() -> str:
     """Get the next random piece"""
-    import random
     return random.choice(PIECE_NAMES)
 
 
@@ -483,7 +486,7 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
 
     nb_players = len(players)
     alive_players = nb_players
-    errors = {} # This is for logging and debugginf purposes
+    errors = {} # This is for logging and debugging purposes
     starters = (player.start_game(nb_players=nb_players, **kwargs) for player in players)
     await asyncio.gather(*starters)
     turn = 0
