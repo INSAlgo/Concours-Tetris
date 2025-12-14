@@ -581,7 +581,7 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
     parser.add_argument("prog", nargs="*", \
             help="AI program to play the game ('user' to play yourself)")
     parser.add_argument("-p", "--players", type=int, default=1, metavar="NB_PLAYERS", \
-            help="number of players (default: 1 for solo mode)")
+            help="number of players (all play independently with same piece sequence)")
     parser.add_argument("-s", "--silent", action="store_true", \
             help="only show the result of the game")
     parser.add_argument("-n", "--nodebug", action="store_true", \
