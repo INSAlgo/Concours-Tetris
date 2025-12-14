@@ -1,4 +1,4 @@
-from . import my_game as game
+from . import tetris as game
 
 NAME = 'Tetris'
 COMMAND = 'tetris'
