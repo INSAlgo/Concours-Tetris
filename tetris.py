@@ -660,12 +660,12 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
     
     # Announce winner and rankings
     if winner:
-        await Player.print(f"\n🎉 {winner} wins with {winner.score} points! 🎉")
-        await Player.print("\n📊 Final Rankings:")
+        await Player.print(f"\n{winner} wins with {winner.score} points!")
+        await Player.print("\nFinal Rankings:")
         for i, player in enumerate(sorted_players, 1):
             await Player.print(f"  {i}. {player} - {player.score} points ({player.pieces_placed} pieces)")
     else:
-        await Player.print("\n🤝 It's a draw!")
+        await Player.print("\n It's a draw!")
 
     return players, winner, errors  # this should not be messed with because that's how the discord bot works
 
