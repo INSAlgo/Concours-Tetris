@@ -1,5 +1,5 @@
-from . import my_game as game
+from . import tetris as game
 
-NAME = 'My Game'
-COMMAND = 'mgme'
-URL = 'https://github.com/INSAlgo/discord-game-template'
+NAME = 'Tetris'
+COMMAND = 'tetris'
+URL = 'https://github.com/INSAlgo/Concours-Tetris'

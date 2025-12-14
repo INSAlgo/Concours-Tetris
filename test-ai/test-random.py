@@ -1,13 +1,20 @@
 import random
-import time
+import sys
 
-W, H, N, S = map(int, input().split())
+# Read game parameters: WIDTH HEIGHT
+W, H = map(int, input().split())
 
-t = 0
 while True:
-    t = t % N + 1
-    time.sleep(0.08)
-    if t == S:
-        print(random.randrange(0, W))
-    else:
-        input()
+    try:
+        # Receive the current piece name
+        piece_name = input().strip()
+    except EOFError:
+        break
+    
+    # Output random x and rotation
+    x = random.randrange(0, W)
+    rotation = random.randrange(0, 4)
+    print(f"{x} {rotation}")
+    sys.stdout.flush()
+
+

@@ -2,12 +2,50 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import contextlib
+import signal
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
-import argparse, asyncio, os, re, sys
+import argparse, asyncio, os, random, re, sys
 
-# You can add game constants here, like a board size for example
+# Tetris game constants
+BOARD_WIDTH = 10
+BOARD_HEIGHT = 20
+
+# Tetris pieces definitions (each piece defined by its coordinates relative to origin)
+PIECES = {
+    'I': [[(0, 0), (1, 0), (2, 0), (3, 0)]],  # I piece (rotations will be computed)
+    'O': [[(0, 0), (1, 0), (0, 1), (1, 1)]],  # O piece (no rotation needed)
+    'T': [[(1, 0), (0, 1), (1, 1), (2, 1)]],  # T piece
+    'S': [[(1, 0), (2, 0), (0, 1), (1, 1)]],  # S piece
+    'Z': [[(0, 0), (1, 0), (1, 1), (2, 1)]],  # Z piece
+    'J': [[(0, 0), (0, 1), (1, 1), (2, 1)]],  # J piece
+    'L': [[(2, 0), (0, 1), (1, 1), (2, 1)]],  # L piece
+}
+
+# Generate all rotations for pieces
+def generate_rotations():
+    rotations = {}
+    for name, shapes in PIECES.items():
+        if name == 'O':  # O piece doesn't need rotation
+            rotations[name] = shapes * 4
+        else:
+            all_rots = []
+            base = shapes[0]
+            for _ in range(4):
+                all_rots.append(base)
+                # Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+                base = [(y, -x) for x, y in base]
+                # Normalize to have min coordinates at 0
+                min_x = min(x for x, y in base)
+                min_y = min(y for x, y in base)
+                base = [(x - min_x, y - min_y) for x, y in base]
+            rotations[name] = all_rots
+    return rotations
+
+PIECE_ROTATIONS = generate_rotations()
+PIECE_NAMES = list(PIECES.keys())
 
 # Default Timeouts :
 TIMEOUT_LENGTH = 0.1
@@ -18,8 +56,8 @@ EMOJI_NUMBERS = ('0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣
 EMOJI_COLORS = ('🟠', '🔴', '🟡', '🟢', '🔵', '🟣', '🟤',  '⚪️', '⚫️')
 
 # what is the type of a valid move or a valid input (when it has a specific format) to use in typing
-ValidMove = Any
-ValidInput = str
+ValidMove = tuple[int, int]  # (x, rotation)
+ValidInput = str  # "x rotation"
 
 # input and output functions types
 InputFunction = Callable[..., str]      # function asking a discord player to make a move, returns the discord answer
@@ -45,6 +83,13 @@ class Player(ABC):
         self.icon = self.no
         self.name = name
         self.rendered_name = None
+        
+        # Tetris-specific attributes
+        self.board = [[0 for _ in range(BOARD_HEIGHT)] for _ in range(BOARD_WIDTH)]
+        self.current_piece = None
+        self.current_piece_name = None
+        self.score = 0
+        self.pieces_placed = 0
 
     @abstractmethod
     async def start_game(self):
@@ -68,7 +113,7 @@ class Player(ABC):
                 await other_player.tell_move(move)
 
     @staticmethod
-    async def sanithize(userInput: str, **kwargs) -> tuple[ValidMove, None] | tuple[None | str]:
+    async def sanitize(userInput: str, **kwargs) -> tuple[ValidMove, None] | tuple[None, str]:
         """Parses raw user input text into an error message or a valid move
 
         Args:
@@ -82,17 +127,42 @@ class Player(ABC):
         # (like the game board for example),
         # just remember to pass them when calling this method.
         
-        if userInput == "stop" :
+        if userInput == "stop":
             # When a human player (or an AI, who knows) wants to abandon.
             return None, "user interrupt"
         
-        # Here, you can process your userInput,
-        # try to get all wrong input cases out as errors
-        # to make sure your game doesn't break.
-
-        processed_input: ValidMove = userInput
-
-        return processed_input, None
+        # Parse Tetris move: "x rotation"
+        try:
+            parts = userInput.strip().split()
+            if len(parts) != 2:
+                return None, "invalid format (expected: x rotation)"
+            
+            x = int(parts[0])
+            rotation = int(parts[1])
+            
+            # Validate ranges
+            if x < 0 or x >= BOARD_WIDTH:
+                return None, f"x must be between 0 and {BOARD_WIDTH - 1}"
+            
+            if rotation < 0 or rotation > 3:
+                return None, "rotation must be between 0 and 3"
+            
+            # Get current piece and board from kwargs
+            current_piece = kwargs.get('current_piece')
+            board = kwargs.get('board')
+            
+            if current_piece is None or board is None:
+                return None, "missing game state"
+            
+            # Check if the move is valid
+            if not is_valid_placement(board, current_piece, x, rotation):
+                return None, "invalid placement"
+            
+            processed_input: ValidMove = (x, rotation)
+            return processed_input, None
+            
+        except ValueError:
+            return None, "x and rotation must be integers"
 
     @staticmethod
     async def print(output: StringIO | str, send_discord=True, end="\n"):
@@ -136,14 +206,14 @@ class Human(Player):
     async def ask_move(self, **kwargs):
         await super().ask_move(**kwargs)
         # You can customize your message asking for a move here :
-        await Player.print(f"Awaiting {self}'s move : ", end="")
+        await Player.print(f"Awaiting {self}'s move (x rotation): ", end="")
         try:
             user_input = await self.input()
         except asyncio.TimeoutError:
             await Player.print(f"User did not respond in time (over {DISCORD_TIMEOUT}s)")
             return None, "timeout"
         # This is where the kwargs are usefull :
-        return await Human.sanithize(user_input, **kwargs)
+        return await Human.sanitize(user_input, **kwargs)
 
     async def tell_move(self, move: ValidInput):
         return super().tell_move(move)
@@ -222,9 +292,8 @@ class AI(Player):
         )
 
         if self.prog.stdin:
-            # Here, write the NORMALIZED message you'll send to the AIs for them to start the game.
-            # This is what this method's kwargs are for, the AI will need 
-            self.prog.stdin.write(f"Your message here\n".encode())
+            # Send initial game parameters: WIDTH HEIGHT
+            self.prog.stdin.write(f"{BOARD_WIDTH} {BOARD_HEIGHT}\n".encode())
             await self.drain()
 
     async def lose_game(self):
@@ -233,6 +302,13 @@ class AI(Player):
     # Don't forget to replace <**kwargs> with the arguments necessary for parsing the input
     async def ask_move(self, debug: bool = True, **kwargs) -> tuple[tuple[int, int] | None, str | None]:
         await super().ask_move(**kwargs)
+        
+        # Send the current piece name to the AI
+        current_piece = kwargs.get('current_piece')
+        if self.prog.stdin and current_piece:
+            self.prog.stdin.write(f"{current_piece}\n".encode())
+            await self.drain()
+        
         try:
             while True:
                 if not self.prog.stdout:
@@ -271,20 +347,39 @@ class AI(Player):
             return None, "timeout"
         
         # This is where the kwargs are usefull :
-        return await AI.sanithize(progInput, **kwargs)
+        return await AI.sanitize(progInput, **kwargs)
 
     async def tell_move(self, move: ValidInput):
         if self.prog.stdin:
             # The AIs should keep track of who's playing themselves.
-            self.prog.stdin.write(f"{move}n".encode())
+            self.prog.stdin.write(f"{move}\n".encode())
             await self.drain()
 
     async def stop_game(self):
-        try:
-            self.prog.terminate()
-            await self.prog.wait()
-        except ProcessLookupError:
-            pass
+        if not self.prog:
+            return
+
+        with contextlib.suppress(ProcessLookupError):
+
+            def killer():
+                # Send SIGTERM
+                yield self.prog.terminate()
+
+                # Send SIGKILL
+                yield self.prog.kill()
+
+                # Kill the process group
+                yield os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
+
+            for task in killer():
+                try:
+                    await asyncio.wait_for(self.prog.wait(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    return True
+
+            raise Exception("Could not kill the AI process")
 
 
 # Here is a place to define functions useful for your game, typically:
@@ -292,6 +387,117 @@ class AI(Player):
 #  - drawing the grid in terminal or in discord
 #  - processing a move
 #  - ...
+
+def get_piece_shape(piece_name: str, rotation: int) -> list[tuple[int, int]]:
+    """Get the shape of a piece with a specific rotation"""
+    return PIECE_ROTATIONS[piece_name][rotation % 4]
+
+
+def is_valid_placement(board: list[list[int]], piece_name: str, x: int, rotation: int) -> bool:
+    """Check if a piece can be placed at position x with given rotation"""
+    shape = get_piece_shape(piece_name, rotation)
+    
+    # Check if piece fits horizontally
+    for dx, dy in shape:
+        px = x + dx
+        if px < 0 or px >= BOARD_WIDTH:
+            return False
+    
+    # Find the lowest position where the piece can be placed
+    max_y = BOARD_HEIGHT
+    for dx, dy in shape:
+        px = x + dx
+        # Find the highest occupied cell in this column
+        for py in range(BOARD_HEIGHT):
+            if board[px][py] != 0:
+                max_y = min(max_y, py - dy - 1)
+                break
+        else:
+            # Column is empty, piece can fall to bottom
+            max_y = min(max_y, BOARD_HEIGHT - 1 - dy)
+    
+    # Check if all blocks of the piece can fit
+    for dx, dy in shape:
+        px = x + dx
+        py = max_y + dy
+        if py < 0 or py >= BOARD_HEIGHT:
+            return False
+        if board[px][py] != 0:
+            return False
+    
+    return True
+
+
+def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, player_id: int) -> int:
+    """Place a piece on the board and return number of lines cleared"""
+    shape = get_piece_shape(piece_name, rotation)
+    
+    # Find the lowest position where the piece can be placed
+    max_y = BOARD_HEIGHT
+    for dx, dy in shape:
+        px = x + dx
+        # Find the highest occupied cell in this column
+        for py in range(BOARD_HEIGHT):
+            if board[px][py] != 0:
+                max_y = min(max_y, py - dy - 1)
+                break
+        else:
+            # Column is empty, piece can fall to bottom
+            max_y = min(max_y, BOARD_HEIGHT - 1 - dy)
+    
+    # Place all blocks
+    for dx, dy in shape:
+        px = x + dx
+        py = max_y + dy
+        board[px][py] = player_id
+    
+    # Clear lines
+    lines_cleared = 0
+    y = 0
+    while y < BOARD_HEIGHT:
+        if all(board[x][y] != 0 for x in range(BOARD_WIDTH)):
+            # Clear this line
+            lines_cleared += 1
+            # Move everything down
+            for yy in range(y, 0, -1):
+                for x in range(BOARD_WIDTH):
+                    board[x][yy] = board[x][yy - 1]
+            # Clear top line
+            for x in range(BOARD_WIDTH):
+                board[x][0] = 0
+            # Don't increment y, check the same line again
+        else:
+            y += 1
+    
+    return lines_cleared
+
+
+def render_board(board: list[list[int]], player_name: str) -> str:
+    """Render a board as a string"""
+    output = StringIO()
+    print(f"\n{player_name}'s Board:", file=output)
+    print("┌" + "─" * BOARD_WIDTH + "┐", file=output)
+    
+    for y in range(BOARD_HEIGHT):
+        line = "│"
+        for x in range(BOARD_WIDTH):
+            if board[x][y] == 0:
+                line += " "
+            else:
+                line += "█"
+        line += "│"
+        print(line, file=output)
+    
+    print("└" + "─" * BOARD_WIDTH + "┘", file=output)
+    print(" " + "".join(str(i) for i in range(BOARD_WIDTH)), file=output)
+    
+    return output.getvalue()
+
+
+def get_next_piece(rng: random.Random) -> str:
+    """Get the next random piece using a seeded RNG"""
+    return rng.choice(PIECE_NAMES)
+
 
 
 async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[Human | AI], Human | AI | None, dict]:
@@ -308,33 +514,38 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
     """
 
     nb_players = len(players)
-    alive_players = nb_players
-    errors = {} # This is for logging and debugginf purposes
+    errors = {} # This is for logging and debugging purposes
+    
+    # Get seed from kwargs or use default
+    seed = kwargs.get('seed', 42)
+    
+    # Start all players
     starters = (player.start_game(**kwargs) for player in players)
     await asyncio.gather(*starters)
-    turn = 0
-    winner = None
-
-    # Initialize general game objects here, like the board
-
-    # game loop
-    while alive_players >= 2:
-        i = turn % nb_players
-        player = players[i]
-
-        if not player.alive:
-            # It is essential to notify of a player "death" so that AIs can skip their turn.
-            # Replace `None` by a NORMALIZED simple value signifying an incorrect move. 
-            await player.tell_other_players(players, None)
-
-        else :
-            await Player.print() # Render the grid for the player here
+    
+    # Each player plays independently (solo mode)
+    async def play_solo_game(player: Human | AI):
+        """Each player plays their own independent game"""
+        # Create seeded RNG for this player (all players get same sequence)
+        rng = random.Random(seed)
+        player.current_piece_name = get_next_piece(rng)
+        
+        while player.alive:
+            # Render the board for the player
+            board_display = render_board(player.board, str(player))
+            await Player.print(board_display)
+            await Player.print(f"Current piece: {player.current_piece_name}")
+            await Player.print(f"Score: {player.score} | Pieces placed: {player.pieces_placed}")
 
             # player input
             user_input, error = None, None
             while not user_input:
-                # Don't forget to give the kwargs necessary for an AI (or a player) to understand what's asked
-                user_input, error = await player.ask_move(debug, **kwargs)
+                # Pass current piece and board for validation
+                user_input, error = await player.ask_move(
+                    debug=debug, 
+                    current_piece=player.current_piece_name,
+                    board=player.board
+                )
                 if isinstance(player, AI) or error in ("user interrupt", "timeout"):
                     break
 
@@ -343,25 +554,39 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
                 await player.lose_game()
                 errors[player] = error
                 player.alive = False
-                alive_players -= 1
-                # It is essential to notify of a player "death" so that AIs can skip their turn.
-                # Replace `None` by a NORMALIZED simple value signifying an incorrect move. 
-                await player.tell_other_players(players, None)
-
             else:
-                # Apply the user_input to the game here, it already went through sanithization so it is a ValidMove
-                # You'll also need to convert to a ValidInput to notify all the AIs of the played move
-                await player.tell_other_players(players, "valid input here")
-            
-                # Check for wins or draw here.
-                # Any end must break the `while alive_players >= 2`.
-                # Do this step early to avoid an infinite loop!
-        
-        turn += 1
-
-    if alive_players == 1:
-        # nobreak
-        winner = [player for player in players if player.alive][0]
+                # Apply the move
+                x, rotation = user_input
+                lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation, player.no + 1)
+                
+                # Update score
+                player.score += lines_cleared * 100  # 100 points per line
+                player.score += 1  # 1 point per piece placed
+                player.pieces_placed += 1
+                
+                if lines_cleared > 0:
+                    await Player.print(f"{player} cleared {lines_cleared} line(s)! (+{lines_cleared * 100} points)")
+                
+                # Get next piece
+                player.current_piece_name = get_next_piece(rng)
+                
+                # Check if player can place the next piece
+                can_place = any(
+                    is_valid_placement(player.board, player.current_piece_name, x, rot)
+                    for x in range(BOARD_WIDTH)
+                    for rot in range(4)
+                )
+                
+                if not can_place:
+                    await player.lose_game()
+                    errors[player] = "board full"
+                    player.alive = False
+    
+    # Run all players' games simultaneously
+    await asyncio.gather(*[play_solo_game(player) for player in players])
+    
+    # Find winner (highest score)
+    winner = max(players, key=lambda p: p.score) if players else None
     
     enders = (player.stop_game() for player in players if isinstance(player, AI))
     await asyncio.gather(*enders)
@@ -376,12 +601,14 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
     parser = argparse.ArgumentParser()
     parser.add_argument("prog", nargs="*", \
             help="AI program to play the game ('user' to play yourself)")
-    parser.add_argument("-p", "--players", type=int, default=2, metavar="NB_PLAYERS", \
-            help="number of players (if more players than programs are provided, the other ones will be filled as real players)")
+    parser.add_argument("-p", "--players", type=int, default=1, metavar="NB_PLAYERS", \
+            help="number of players (all play independently with same piece sequence)")
     parser.add_argument("-s", "--silent", action="store_true", \
             help="only show the result of the game")
     parser.add_argument("-n", "--nodebug", action="store_true", \
             help="do not print the debug output of the programs")
+    parser.add_argument("--seed", type=int, default=42, \
+            help="random seed for piece sequence (default: 42)")
     # Add here any extra argument you need to define the game (board size for example)
 
     args = parser.parse_args(raw_args)
@@ -415,15 +642,30 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
         else:
             sys.stdout = open(os.devnull, "w")
 
-    players, winner, errors = await game(players, not args.nodebug) # Add extra arguments extracted from `args`
+    players, winner, errors = await game(players, not args.nodebug, seed=args.seed) # Add extra arguments extracted from `args`
 
     if args.silent:
         sys.stdout = origin_stdout
         Player.ofunc = ofunc
     else:
-        # print whatever you want when not silent, often the final board
-        ...
-    ... # another place to display things
+        # Display final boards and scores
+        await Player.print("\n=== FINAL RESULTS ===")
+        for player in players:
+            board_display = render_board(player.board, str(player))
+            await Player.print(board_display)
+            await Player.print(f"{player} - Final Score: {player.score} | Pieces Placed: {player.pieces_placed}")
+    
+    # Sort players by score for ranking
+    sorted_players = sorted(players, key=lambda p: p.score, reverse=True)
+    
+    # Announce winner and rankings
+    if winner:
+        await Player.print(f"\n🎉 {winner} wins with {winner.score} points! 🎉")
+        await Player.print("\n📊 Final Rankings:")
+        for i, player in enumerate(sorted_players, 1):
+            await Player.print(f"  {i}. {player} - {player.score} points ({player.pieces_placed} pieces)")
+    else:
+        await Player.print("\n🤝 It's a draw!")
 
     return players, winner, errors  # this should not be messed with because that's how the discord bot works
 
