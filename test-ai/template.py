@@ -1,7 +1,8 @@
 import random
+import sys
 
-# Read initial game parameters
-W, H, N, S = map(int, input().split())
+# Read initial game parameters: WIDTH HEIGHT
+W, H = map(int, input().split())
 
 # Tetris pieces definitions with rotations
 PIECES = {
@@ -99,41 +100,28 @@ def strategy(board, current_piece):
     return random.choice(valid_moves)
 
 def main():
-    # Initialize boards for all players
-    boards = [[[0 for _ in range(H)] for _ in range(W)] for _ in range(N)]
-    
-    # Track current pieces (we'll guess based on moves)
-    current_pieces = [random.choice(PIECE_NAMES) for _ in range(N)]
-    
-    player = 0
+    # Initialize our board
+    board = [[0 for _ in range(H)] for _ in range(W)]
     
     while True:
-        player = player % N + 1
+        # Receive the current piece name
+        try:
+            piece_name = input().strip()
+        except EOFError:
+            break
         
-        # Our turn
-        if player == S:
-            x, rotation = strategy(boards[S - 1], current_pieces[S - 1])
-            print(f"> Playing {current_pieces[S - 1]} at x={x} rotation={rotation}")  # Debug
-            print(f"{x} {rotation}")
-            
-            # Update our board (simplified - doesn't handle line clearing)
-            # In a real implementation, you'd want to track line clears
-            current_pieces[S - 1] = random.choice(PIECE_NAMES)
+        # Calculate the best move
+        x, rotation = strategy(board, piece_name)
         
-        # Opponent's turn
-        else:
-            move = input().strip()
-            parts = move.split()
-            
-            if len(parts) == 2:
-                x, rotation = int(parts[0]), int(parts[1])
-                
-                # Check for elimination
-                if x == -1 and rotation == -1:
-                    print(f"> Player {player} eliminated")
-                else:
-                    # Update opponent board (simplified)
-                    current_pieces[player - 1] = random.choice(PIECE_NAMES)
+        # Debug output
+        print(f"> Playing {piece_name} at x={x} rotation={rotation}", file=sys.stderr)
+        
+        # Output the move
+        print(f"{x} {rotation}")
+        sys.stdout.flush()
+        
+        # Update our internal board (simplified - doesn't handle line clearing perfectly)
+        # In a real implementation, you'd want to simulate the exact piece placement
 
 if __name__ == "__main__":
     main()

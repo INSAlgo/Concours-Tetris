@@ -4,34 +4,39 @@ This is a Tetris game module for the Discord bot Dijkstra-Chan, designed for AI 
 
 ## Game Description
 
-Players compete in a battle Tetris game where they must survive the longest by clearing lines and avoiding their board filling up. The classic Tetris rules apply with the standard 7 tetrominoes (I, O, T, S, Z, J, L pieces).
+This is a **solo scoring game** where each AI plays independently to achieve the highest score possible. All AIs receive the same predetermined sequence of pieces (using a fixed random seed), and rankings are based on the final score achieved.
+
+The classic Tetris rules apply with the standard 7 tetrominoes (I, O, T, S, Z, J, L pieces).
 
 ## Rules
 
-1. **Board**: Each player has their own 10x20 board (width x height)
+1. **Board**: Each player has a 10x20 board (width x height)
 2. **Pieces**: The game uses the 7 standard tetrominoes (I, O, T, S, Z, J, L)
-3. **Moves**: On each turn, players must place their current piece by specifying:
+3. **Piece Sequence**: All players receive the **same sequence** of pieces (deterministic seed)
+4. **Moves**: On each turn, players must place their current piece by specifying:
    - Column position (x: 0-9)
    - Rotation (0-3, representing 0°, 90°, 180°, 270°)
-4. **Line Clearing**: When a horizontal line is completely filled, it is cleared and all lines above drop down
-5. **Game Over**: A player loses when they cannot place their current piece on the board
-6. **Winner**: The last player remaining wins
+5. **Scoring**:
+   - Each line cleared: +100 points
+   - Each piece placed: +1 point
+6. **Line Clearing**: When a horizontal line is completely filled, it is cleared and all lines above drop down
+7. **Game Over**: Game ends when the player cannot place their current piece on the board
+8. **Ranking**: Players are ranked by their final score (highest wins)
 
 ## Input/Output Protocol
 
 ### Game Start
-At the beginning, AIs receive: `WIDTH HEIGHT NB_PLAYERS PLAYER_ID`
+At the beginning, AIs receive: `WIDTH HEIGHT`
 - WIDTH: Board width (10)
 - HEIGHT: Board height (20)
-- NB_PLAYERS: Number of players in the game
-- PLAYER_ID: Your player ID (1-indexed)
 
 ### Each Turn
+The AI receives the current piece name: `PIECE_NAME`
+- PIECE_NAME: One of: I, O, T, S, Z, J, L
+
 AIs must output: `X ROTATION`
 - X: Column where the piece should drop (0-9)
 - ROTATION: Number of 90° rotations (0-3)
-
-AIs receive opponents' moves: `X ROTATION` or `-1 -1` if a player is eliminated
 
 ## Making Your AI
 

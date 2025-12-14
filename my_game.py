@@ -86,6 +86,8 @@ class Player(ABC):
         self.board = [[0 for _ in range(BOARD_HEIGHT)] for _ in range(BOARD_WIDTH)]
         self.current_piece = None
         self.current_piece_name = None
+        self.score = 0
+        self.pieces_placed = 0
 
     @abstractmethod
     async def start_game(self):
@@ -288,9 +290,8 @@ class AI(Player):
         )
 
         if self.prog.stdin:
-            # Send initial game parameters: WIDTH HEIGHT NB_PLAYERS PLAYER_ID
-            nb_players = kwargs.get('nb_players', 2)
-            self.prog.stdin.write(f"{BOARD_WIDTH} {BOARD_HEIGHT} {nb_players} {self.no + 1}\n".encode())
+            # Send initial game parameters: WIDTH HEIGHT
+            self.prog.stdin.write(f"{BOARD_WIDTH} {BOARD_HEIGHT}\n".encode())
             await self.drain()
 
     async def lose_game(self):
@@ -299,6 +300,13 @@ class AI(Player):
     # Don't forget to replace <**kwargs> with the arguments necessary for parsing the input
     async def ask_move(self, debug: bool = True, **kwargs) -> tuple[tuple[int, int] | None, str | None]:
         await super().ask_move(**kwargs)
+        
+        # Send the current piece name to the AI
+        current_piece = kwargs.get('current_piece')
+        if self.prog.stdin and current_piece:
+            self.prog.stdin.write(f"{current_piece}\n".encode())
+            await self.drain()
+        
         try:
             while True:
                 if not self.prog.stdout:
@@ -465,9 +473,9 @@ def render_board(board: list[list[int]], player_name: str) -> str:
     return output.getvalue()
 
 
-def get_next_piece() -> str:
-    """Get the next random piece"""
-    return random.choice(PIECE_NAMES)
+def get_next_piece(rng: random.Random) -> str:
+    """Get the next random piece using a seeded RNG"""
+    return rng.choice(PIECE_NAMES)
 
 
 
@@ -485,32 +493,28 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
     """
 
     nb_players = len(players)
-    alive_players = nb_players
     errors = {} # This is for logging and debugging purposes
-    starters = (player.start_game(nb_players=nb_players, **kwargs) for player in players)
+    
+    # Get seed from kwargs or use default
+    seed = kwargs.get('seed', 42)
+    
+    # Start all players
+    starters = (player.start_game(**kwargs) for player in players)
     await asyncio.gather(*starters)
-    turn = 0
-    winner = None
-
-    # Initialize pieces for each player
-    for player in players:
-        player.current_piece_name = get_next_piece()
-
-    # game loop
-    while alive_players >= 2:
-        i = turn % nb_players
-        player = players[i]
-
-        if not player.alive:
-            # It is essential to notify of a player "death" so that AIs can skip their turn.
-            # Replace `None` by a NORMALIZED simple value signifying an incorrect move. 
-            await player.tell_other_players(players, "-1 -1")
-
-        else:
+    
+    # Each player plays independently (solo mode)
+    async def play_solo_game(player: Human | AI):
+        """Each player plays their own independent game"""
+        # Create seeded RNG for this player (all players get same sequence)
+        rng = random.Random(seed)
+        player.current_piece_name = get_next_piece(rng)
+        
+        while player.alive:
             # Render the board for the player
             board_display = render_board(player.board, str(player))
             await Player.print(board_display)
             await Player.print(f"Current piece: {player.current_piece_name}")
+            await Player.print(f"Score: {player.score} | Pieces placed: {player.pieces_placed}")
 
             # player input
             user_input, error = None, None
@@ -529,24 +533,21 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
                 await player.lose_game()
                 errors[player] = error
                 player.alive = False
-                alive_players -= 1
-                # It is essential to notify of a player "death" so that AIs can skip their turn.
-                await player.tell_other_players(players, "-1 -1")
-
             else:
                 # Apply the move
                 x, rotation = user_input
                 lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation, player.no + 1)
                 
-                if lines_cleared > 0:
-                    await Player.print(f"{player} cleared {lines_cleared} line(s)!")
+                # Update score
+                player.score += lines_cleared * 100  # 100 points per line
+                player.score += 1  # 1 point per piece placed
+                player.pieces_placed += 1
                 
-                # Notify other players of the move
-                move_str = f"{x} {rotation}"
-                await player.tell_other_players(players, move_str)
+                if lines_cleared > 0:
+                    await Player.print(f"{player} cleared {lines_cleared} line(s)! (+{lines_cleared * 100} points)")
                 
                 # Get next piece
-                player.current_piece_name = get_next_piece()
+                player.current_piece_name = get_next_piece(rng)
                 
                 # Check if player can place the next piece
                 can_place = any(
@@ -559,14 +560,12 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
                     await player.lose_game()
                     errors[player] = "board full"
                     player.alive = False
-                    alive_players -= 1
-                    await player.tell_other_players(players, "-1 -1")
-        
-        turn += 1
-
-    if alive_players == 1:
-        # nobreak
-        winner = [player for player in players if player.alive][0]
+    
+    # Run all players' games simultaneously
+    await asyncio.gather(*[play_solo_game(player) for player in players])
+    
+    # Find winner (highest score)
+    winner = max(players, key=lambda p: p.score) if players else None
     
     enders = (player.stop_game() for player in players if isinstance(player, AI))
     await asyncio.gather(*enders)
@@ -581,8 +580,8 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
     parser = argparse.ArgumentParser()
     parser.add_argument("prog", nargs="*", \
             help="AI program to play the game ('user' to play yourself)")
-    parser.add_argument("-p", "--players", type=int, default=2, metavar="NB_PLAYERS", \
-            help="number of players (if more players than programs are provided, the other ones will be filled as real players)")
+    parser.add_argument("-p", "--players", type=int, default=1, metavar="NB_PLAYERS", \
+            help="number of players (default: 1 for solo mode)")
     parser.add_argument("-s", "--silent", action="store_true", \
             help="only show the result of the game")
     parser.add_argument("-n", "--nodebug", action="store_true", \
@@ -626,14 +625,22 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
         sys.stdout = origin_stdout
         Player.ofunc = ofunc
     else:
-        # Display final boards
+        # Display final boards and scores
+        await Player.print("\n=== FINAL RESULTS ===")
         for player in players:
             board_display = render_board(player.board, str(player))
             await Player.print(board_display)
+            await Player.print(f"{player} - Final Score: {player.score} | Pieces Placed: {player.pieces_placed}")
     
-    # Announce winner
+    # Sort players by score for ranking
+    sorted_players = sorted(players, key=lambda p: p.score, reverse=True)
+    
+    # Announce winner and rankings
     if winner:
-        await Player.print(f"\n🎉 {winner} wins the game! 🎉")
+        await Player.print(f"\n🎉 {winner} wins with {winner.score} points! 🎉")
+        await Player.print("\n📊 Final Rankings:")
+        for i, player in enumerate(sorted_players, 1):
+            await Player.print(f"  {i}. {player} - {player.score} points ({player.pieces_placed} pieces)")
     else:
         await Player.print("\n🤝 It's a draw!")
 
