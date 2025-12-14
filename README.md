@@ -46,3 +46,19 @@ The template includes:
 - Board state tracking
 - Piece definitions and rotations
 - Helper functions for valid move checking
+
+## Running Games
+
+```bash
+# Single AI (solo mode)
+python3 my_game.py test-ai/template.py
+
+# Multiple AIs competing (same piece sequence)
+python3 my_game.py test-ai/template.py test-ai/test-random.py -p 2
+
+# Custom seed for different piece sequence
+python3 my_game.py test-ai/template.py --seed 123
+
+# Silent mode (only show results)
+python3 my_game.py test-ai/template.py --silent
+```

@@ -586,6 +586,8 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
             help="only show the result of the game")
     parser.add_argument("-n", "--nodebug", action="store_true", \
             help="do not print the debug output of the programs")
+    parser.add_argument("--seed", type=int, default=42, \
+            help="random seed for piece sequence (default: 42)")
     # Add here any extra argument you need to define the game (board size for example)
 
     args = parser.parse_args(raw_args)
@@ -619,7 +621,7 @@ async def main(raw_args: str = None, ifunc: InputFunction = None, ofunc: OutputF
         else:
             sys.stdout = open(os.devnull, "w")
 
-    players, winner, errors = await game(players, not args.nodebug) # Add extra arguments extracted from `args`
+    players, winner, errors = await game(players, not args.nodebug, seed=args.seed) # Add extra arguments extracted from `args`
 
     if args.silent:
         sys.stdout = origin_stdout
