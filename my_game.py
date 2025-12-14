@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import contextlib
+import signal
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
@@ -354,11 +356,30 @@ class AI(Player):
             await self.drain()
 
     async def stop_game(self):
-        try:
-            self.prog.terminate()
-            await self.prog.wait()
-        except ProcessLookupError:
-            pass
+        if not self.prog:
+            return
+
+        with contextlib.suppress(ProcessLookupError):
+
+            def killer():
+                # Send SIGTERM
+                yield self.prog.terminate()
+
+                # Send SIGKILL
+                yield self.prog.kill()
+
+                # Kill the process group
+                yield os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
+
+            for task in killer():
+                try:
+                    await asyncio.wait_for(self.prog.wait(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    return True
+
+            raise Exception("Could not kill the AI process")
 
 
 # Here is a place to define functions useful for your game, typically:
