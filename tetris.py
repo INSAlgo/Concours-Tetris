@@ -13,6 +13,17 @@ import argparse, asyncio, os, random, re, sys
 BOARD_WIDTH = 10
 BOARD_HEIGHT = 20
 
+EMOJIS = {
+    'empty': '⬛',
+    'I': '🟦',
+    'O': '🟨',
+    'T': '🟪',
+    'S': '🟩',
+    'Z': '🟥',
+    'J': '🟦',
+    'L': '🟧'
+}
+
 # Tetris pieces definitions (each piece defined by its coordinates relative to origin)
 PIECES = {
     'I': [[(0, 0), (1, 0), (2, 0), (3, 0)]],  # I piece (rotations will be computed)
@@ -46,14 +57,11 @@ def generate_rotations():
 
 PIECE_ROTATIONS = generate_rotations()
 PIECE_NAMES = list(PIECES.keys())
+PIECE_VALUES = {name: i+1 for i, name in enumerate(PIECE_NAMES)}
 
 # Default Timeouts :
 TIMEOUT_LENGTH = 0.1
 DISCORD_TIMEOUT = 60
-
-# Usefull emojis :
-EMOJI_NUMBERS = ('0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣')
-EMOJI_COLORS = ('🟠', '🔴', '🟡', '🟢', '🔵', '🟣', '🟤',  '⚪️', '⚫️')
 
 # what is the type of a valid move or a valid input (when it has a specific format) to use in typing
 ValidMove = tuple[int, int]  # (x, rotation)
@@ -428,10 +436,10 @@ def is_valid_placement(board: list[list[int]], piece_name: str, x: int, rotation
     return True
 
 
-def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, player_id: int) -> int:
+def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int) -> int:
     """Place a piece on the board and return number of lines cleared"""
     shape = get_piece_shape(piece_name, rotation)
-    
+
     # Find the lowest position where the piece can be placed
     max_y = BOARD_HEIGHT
     for dx, dy in shape:
@@ -444,12 +452,12 @@ def place_piece(board: list[list[int]], piece_name: str, x: int, rotation: int, 
         else:
             # Column is empty, piece can fall to bottom
             max_y = min(max_y, BOARD_HEIGHT - 1 - dy)
-    
+
     # Place all blocks
     for dx, dy in shape:
         px = x + dx
         py = max_y + dy
-        board[px][py] = player_id
+        board[px][py] = PIECE_VALUES[piece_name]
     
     # Clear lines
     lines_cleared = 0
@@ -476,19 +484,21 @@ def render_board(board: list[list[int]], player_name: str) -> str:
     """Render a board as a string"""
     output = StringIO()
     print(f"\n{player_name}'s Board:", file=output)
-    print("┌" + "─" * BOARD_WIDTH + "┐", file=output)
+    print("┌" + "─" * BOARD_WIDTH * 2 + "┐", file=output)
     
     for y in range(BOARD_HEIGHT):
         line = "│"
         for x in range(BOARD_WIDTH):
-            if board[x][y] == 0:
-                line += " "
+            value = board[x][y]
+            if value == 0:
+                line += EMOJIS['empty']
             else:
-                line += "█"
+                piece_name = PIECE_NAMES[value - 1]
+                line += EMOJIS[piece_name]
         line += "│"
         print(line, file=output)
     
-    print("└" + "─" * BOARD_WIDTH + "┘", file=output)
+    print("└" + "─" * BOARD_WIDTH*2 + "┘", file=output)
     print(" " + "".join(str(i) for i in range(BOARD_WIDTH)), file=output)
     
     return output.getvalue()
@@ -557,7 +567,7 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
             else:
                 # Apply the move
                 x, rotation = user_input
-                lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation, player.no + 1)
+                lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation)
                 
                 # Update score
                 player.score += lines_cleared * 100  # 100 points per line
