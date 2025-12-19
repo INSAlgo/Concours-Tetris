@@ -66,13 +66,13 @@ Le moteur gère la séquence des pièces grâce à un générateur pseudo-aléat
 
 Chaque pièce sera identifiée par un unique caractère (a-z, A-Z).
 
-Temps limite d'execution : **0.1 seconde** par tour.
+Temps limite d'exécution : **0.1 seconde** par tour.
 
 
-**Attention!** Le CPU du VPS est probablement plus lent que celui de votre machine, pensez à tester votre programme avec Djikstra-Chan pour être sûr de ne pas avoir de timeout lors du tournoi final.
+**Attention!** Le CPU du VPS est probablement plus lent que celui de votre machine, pensez à tester votre programme avec Dijkstra-Chan pour être sûr de ne pas avoir de timeout lors du tournoi final.
 
 
-Dû à un biais des organisateurs, les humains seront privilégiés et auront le droit a un timeout plus long (1 minute).
+Dû à un biais des organisateurs, les humains seront privilégiés et auront le droit à un timeout plus long (1 minute).
 
 ---
 
@@ -146,7 +146,7 @@ Options disponibles :
 * `--runs X` : lance `X` parties avec des seeds différentes, et calcule le score moyen
 
 
-Les languages acceptés pour des tests en local sont :
+Les langages acceptés pour des tests en local sont :
 
 * scripts Python `.py`
 * scripts JavaScript `.js`
@@ -185,7 +185,7 @@ Joignez votre fichier dans le même message. (Le script, pas l'exécutable! Les 
 
 ⚠️ Seule la **dernière soumission** sera prise en compte.
 
-Langages acceptés par Djikstra-Chan :
+Langages acceptés par Dijkstra-Chan :
 
 * Python 3 `.py`
 * JavaScript `.js`
@@ -201,10 +201,10 @@ Pour tout autre langage, contactez un membre du bureau d’INSAlgo.
 ## Règles du concours
 
 - **Éligibilité** : Tout membre du salon Discord INSAlgo peut participer. La participation en équipe est aussi autorisée.
-- **Utilisation de LLM** : L'usage de LLM afin d'assister au développement est autorisé. Cependant, gardez à l'esprit que l'objectif de ce concours reste de développer son bot soi-même, les organisateurs se réservent donc le droit de supprimer toute IA jugée abusive. Mais pas d'inquiètudes, vous aurez toujours le droit de soumettre une autre IA.
+- **Utilisation de LLM** : L'usage de LLM afin d'assister au développement est autorisé. Cependant, gardez à l'esprit que l'objectif de ce concours reste de développer son bot soi-même, les organisateurs se réservent donc le droit de supprimer toute IA jugée abusive. Mais pas d'inquiétudes, vous aurez toujours le droit de soumettre une autre IA.
 - **Exécution et contraintes** : Les IA seront lancées via le moteur `tetris.py` fourni. Lors du tournoi final, chaque IA joue plusieurs parties (mêmes seeds que pour toutes les IA). Le score final d'une IA sera la **moyenne** des scores obtenus sur l'ensemble des parties.
 - **Notation et fair-play** : Rédigez du code lisible et commenté.
-- **Reglement** : Il est possible que nous ayons fait des erreurs, n'hésitez donc pas à nous contacter en cas de bug ou de problème avec le réglement!
+- **Règlement** : Il est possible que nous ayons fait des erreurs, n'hésitez donc pas à nous contacter en cas de bug ou de problème avec le règlement!
 
 ---
 
