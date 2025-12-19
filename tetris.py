@@ -748,14 +748,6 @@ async def main(
         "prog", nargs="*", help="AI program to play the game ('user' to play yourself)"
     )
     parser.add_argument(
-        "-p",
-        "--players",
-        type=int,
-        default=1,
-        metavar="NB_PLAYERS",
-        help="number of players (all play independently with same piece sequence)",
-    )
-    parser.add_argument(
         "-s", "--silent", action="store_true", help="only show the result of the game"
     )
     parser.add_argument(
@@ -797,9 +789,6 @@ async def main(
             players.append(
                 AI(i, name, discord)
             )  # Add extra arguments extracted from `args`
-    while len(players) < args.players:
-        players.append(Human(len(players)))  # Add extra arguments extracted from `args`
-        ai_only = False
 
     scores_per_ai = {player.name: [] for player in players if isinstance(player, AI)}
 
