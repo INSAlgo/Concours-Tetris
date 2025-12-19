@@ -7,7 +7,7 @@ import signal
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
-import argparse, asyncio, os, random, re, subprocess, sys
+import argparse, asyncio, os, platform, random, re, shutil, subprocess, sys
 
 # Tetris game constants
 BOARD_WIDTH = 10
@@ -255,19 +255,23 @@ class AI(Player):
 
         match path.suffix:
             case ".py":
-                command = f"python3 {progPath}"
+                command = f"{sys.executable} {progPath}"
             case ".js":
                 command = f"node {progPath}"
             case ".class":
                 command = f"java -cp {os.path.dirname(progPath)} {os.path.splitext(os.path.basename(progPath))[0]}"
             case _:
-                command = f"./{progPath}"
+                if os.name == 'posix':
+                    command = f"./{progPath}"
+                else:
+                    command = f"{progPath}"
 
         # Security enhancement: Use Firejail sandboxing if available and profile exists
-        if subprocess.run(['which', 'firejail'], capture_output=True).returncode == 0 and os.path.exists('tetris.profile'):
+        if platform.system() == 'Linux' and shutil.which('firejail') is not None and os.path.exists('tetris.profile'):
             command = f"firejail --profile=tetris.profile {command}"
             print(f'Running command with firejail!')
 
+        print(f"Prepared command for {progPath}: {command}")
         return command
 
     def __init__(self, no: int, prog_path: str, discord: bool, **kwargs):
@@ -299,12 +303,14 @@ class AI(Player):
         # You can specify here what parameters are required to start a game for an AI player.
         # For example : board size, number of players...
         await super().start_game()
+        print(f"Starting AI subprocess for {self.prog_path}")
         self.prog = await asyncio.create_subprocess_shell(
             AI.prepare_command(self.prog_path),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
+        print(f"AI subprocess created: {self.prog}")
 
         if self.prog.stdin:
             # Send initial game parameters: WIDTH HEIGHT
@@ -373,28 +379,39 @@ class AI(Player):
     async def stop_game(self):
         if not self.prog:
             return
-
-        with contextlib.suppress(ProcessLookupError):
-
-            def killer():
-                # Send SIGTERM
-                yield self.prog.terminate()
-
-                # Send SIGKILL
-                yield self.prog.kill()
-
-                # Kill the process group
-                yield os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
-
-            for task in killer():
+    
+        if hasattr(self.prog, 'terminate') and callable(self.prog.terminate):
+            with contextlib.suppress(ProcessLookupError):
+                self.prog.terminate()
                 try:
                     await asyncio.wait_for(self.prog.wait(), timeout=1)
+                    return
                 except asyncio.TimeoutError:
                     pass
-                else:
-                    return True
-
-            raise Exception("Could not kill the AI process")
+    
+        if hasattr(self.prog, 'kill') and callable(self.prog.kill):
+            self.prog.kill()
+            try:
+                await asyncio.wait_for(self.prog.wait(), timeout=1)
+                return
+            except asyncio.TimeoutError:
+                pass
+    
+        if hasattr(self.prog, 'pid') and self.prog.pid is not None:
+            if os.name == 'posix':
+                try:
+                    os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
+                except (ProcessLookupError, OSError):
+                    pass
+            else:
+                subprocess.run(['taskkill', '/PID', str(self.prog.pid), '/T', '/F'])
+            try:
+                await asyncio.wait_for(self.prog.wait(), timeout=1)
+                return
+            except asyncio.TimeoutError:
+                pass
+    
+        raise Exception("Could not kill the AI process")
 
 
 # Here is a place to define functions useful for your game, typically:
