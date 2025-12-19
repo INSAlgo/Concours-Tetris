@@ -619,7 +619,7 @@ def render_board(board: list[list[int]], player_name: str) -> str:
         print(line, file=output)
 
     print("└" + "─" * BOARD_WIDTH * 2 + "┘", file=output)
-    print(" " + "".join(str(i) for i in range(BOARD_WIDTH)), file=output)
+    print("  " + " ".join(str(i) for i in range(BOARD_WIDTH)), file=output)
 
     return output.getvalue()
 
