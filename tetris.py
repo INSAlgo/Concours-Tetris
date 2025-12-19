@@ -20,7 +20,7 @@ EMOJIS = {
     'T': '🟪',
     'S': '🟩',
     'Z': '🟥',
-    'J': '🟦',
+    'J': '⬜',
     'L': '🟧'
 }
 
@@ -204,7 +204,7 @@ class Human(Player):
         # Here you can personnalize human players name specifically
         self.rendered_name = f"{self.name} {self.icon}" if name else f"Player {self.icon}"
 
-    async def start_game(self):
+    async def start_game(self, **_):
         await super().start_game()
 
     async def lose_game(self):
