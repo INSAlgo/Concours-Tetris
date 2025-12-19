@@ -355,6 +355,8 @@ class AI(Player):
         # Once again, you can personnalize how the AI player will be called during the game here
         if discord:
             # if it's through discord, self.name should be the discord user's ID
+            if self.name.startswith("ai_"):
+                self.name = self.name[3:]
             self.rendered_name = f"<@{self.name}>'s AI {self.icon}"
         else:
             self.rendered_name = f"AI {self.icon} ({self.name})"
@@ -642,7 +644,6 @@ async def game(
         `tuple[list[Human | AI], Human | AI | None, dict, ...]`: A whole bunch of game data to help display and judge the result
     """
 
-    nb_players = len(players)
     errors = {}  # This is for logging and debugging purposes
 
     # Get seed from kwargs or use default
@@ -824,6 +825,9 @@ async def main(
 
     # Announce winner and rankings
     if winner:
+        if discord and winner.name.startswith("ai_"):
+            winner.name = winner.name[3:]
+
         await Player.print(f"\n{winner} wins with {winner.score} points!")
         await Player.print("\nFinal Rankings:")
         for i, player in enumerate(sorted_players, 1):
