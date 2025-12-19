@@ -58,6 +58,8 @@ PIECES = {
 """,
 }
 
+# Points obtained when clearing multiple lines at once
+CLEARING_SCORE = [100, 300, 500, 800]
 
 def parse_piece(text: str) -> list[tuple[int, int]]:
     """Parse a text matrix into piece coordinates"""
@@ -694,14 +696,17 @@ async def game(
                 )
 
                 # Update score
-                player.score += lines_cleared * 100  # 100 points per line
+                if lines_cleared > 0:
+                    line_points = CLEARING_SCORE[lines_cleared-1]
+
+                    player.score += line_points
+
+                    await Player.print(
+                        f"{player} cleared {lines_cleared} line(s)! (+{line_points} points)"
+                    )
+
                 player.score += 1  # 1 point per piece placed
                 player.pieces_placed += 1
-
-                if lines_cleared > 0:
-                    await Player.print(
-                        f"{player} cleared {lines_cleared} line(s)! (+{lines_cleared * 100} points)"
-                    )
 
                 # Get next piece
                 player.current_piece_name = get_next_piece(rng)
