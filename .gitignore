@@ -9,3 +9,4 @@ ai/*
 old-ai/*
 log
 *.pyc
+Cargo.toml
