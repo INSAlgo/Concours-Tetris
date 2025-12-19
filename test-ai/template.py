@@ -1,20 +1,22 @@
 import random
 import sys
 
-# Read initial game parameters: WIDTH HEIGHT
-W, H = map(int, input().split())
+def load_inputs():
+    global W, H, PIECES
+    # Read initial game parameters: WIDTH HEIGHT
+    W, H = map(int, input().split())
 
-# Read number of pieces
-num_pieces = int(input())
+    # Read number of pieces
+    num_pieces = int(input())
 
-# Read all pieces and store in PIECES dict
-PIECES = {}
-for _ in range(num_pieces):
-    line = input().strip()
-    parts = line.split()
-    name = parts[0]
-    shape = [tuple(map(int, coord.split(','))) for coord in parts[1:]]
-    PIECES[name] = shape
+    # Read all pieces and store in PIECES dict
+    PIECES = {}
+    for _ in range(num_pieces):
+        line = input().strip()
+        parts = line.split()
+        name = parts[0]
+        shape = [tuple(map(int, coord.split(','))) for coord in parts[1:]]
+        PIECES[name] = shape
 
 def generate_rotations(shape):
     """Generate all 4 rotations for a given shape"""
@@ -90,6 +92,7 @@ def strategy(board, rotations):
     return random.choice(valid_moves)
 
 def main():
+    load_inputs()
     # Initialize our board
     board = [[0 for _ in range(H)] for _ in range(W)]
     

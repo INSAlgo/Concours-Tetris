@@ -1,34 +1,38 @@
-const readline = require('readline');
+const fs = require('fs');
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-  terminal: false
-});
-
-let firstLine = true;
 let W, H;
-let numPieces = null;
-let skipCount = 0;
+let pieces = {};
 
-rl.on('line', (line) => {
-  if (firstLine) {
-    [W, H] = line.trim().split(/\s+/).map(Number);
-    firstLine = false;
-  } else if (numPieces === null) {
-    numPieces = parseInt(line.trim());
-    skipCount = numPieces;
-  } else if (skipCount > 0) {
-    skipCount--;
-  } else {
-    const piece_name = line.trim().split(/\s+/)[0];
-    // Output random x (0 to W-1) and random rotation (0-3)
+function loadInputs() {
+  const allInput = fs.readFileSync(0, 'utf-8').trim();
+  const lines = allInput.split('\n');
+  let idx = 0;
+
+  const [w, h] = lines[idx++].trim().split(/\s+/).map(Number);
+  W = w;
+  H = h;
+
+  const N = parseInt(lines[idx++].trim());
+  pieces = {};
+  for (let i = 0; i < N; i++) {
+    const parts = lines[idx++].trim().split(/\s+/);
+    const name = parts[0];
+    const coords = parts.slice(1).map(coord => {
+      const [x, y] = coord.split(',').map(Number);
+      return [x, y];
+    });
+    pieces[name] = coords;
+  }
+
+  // Process the remaining lines as game inputs
+  for (let j = idx; j < lines.length; j++) {
+    const line = lines[j].trim();
+    if (line === '') continue;
+    // Assuming each line is a game state, output random move
     const x = Math.floor(Math.random() * W);
     const rotation = Math.floor(Math.random() * 4);
     console.log(`${x} ${rotation}`);
   }
-});
+}
 
-rl.on('close', () => {
-  process.exit(0);
-});
+loadInputs();
