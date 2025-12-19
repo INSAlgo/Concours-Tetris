@@ -722,18 +722,6 @@ async def game(
                 # Get next piece
                 player.current_piece_name = get_next_piece(rng)
 
-                # Check if player can place the next piece
-                can_place = any(
-                    is_valid_placement(player.board, player.current_piece_name, x, rot)
-                    for x in range(BOARD_WIDTH)
-                    for rot in range(4)
-                )
-
-                if not can_place:
-                    await player.lose_game()
-                    errors[player] = "board full"
-                    player.alive = False
-
     # Run all players' games simultaneously
     await asyncio.gather(*[play_solo_game(player) for player in players])
 
@@ -873,7 +861,6 @@ async def main(
             if discord and winner.name.startswith("ai_"):
                 winner.name = winner.name[3:]
 
-            await Player.print(f"\n{winner} wins with {winner.score} points!")
             await Player.print("\nFinal Rankings:")
             for i, player in enumerate(sorted_players, 1):
                 await Player.print(
