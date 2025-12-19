@@ -10,3 +10,4 @@ old-ai/*
 log
 *.pyc
 Cargo.toml
+base.csproj
