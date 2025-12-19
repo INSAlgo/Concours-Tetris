@@ -188,7 +188,7 @@ Pour tout autre langage, contactez un membre du bureau d’INSAlgo.
 
 - **Éligibilité** : Tout membre du salon Discord INSAlgo peut participer. La participation en équipe est autorisée (une seule soumission par équipe). 
 - **Originalité** : Les soumissions doivent être originales. Les organisateurs vérifieront le code source avant de valider les résultats.
-- **Exécution et contraintes** : Les IA seront lancées via le moteur `tetris.py` fourni. Chaque IA joue plusieurs parties (mêmes seeds que pour toutes les IA). Le score final d'une IA est la **moyenne** des scores obtenus sur l'ensemble des parties.
+- **Exécution et contraintes** : Les IA seront lancées via le moteur `tetris.py` fourni. Chaque IA joue plusieurs parties (mêmes seeds que pour toutes les IA). Le score final d'une IA lors du dernier tournoi sera la **moyenne** des scores obtenus sur l'ensemble des parties.
 - **Notation et fair-play** : Rédigez du code lisible et commenté.
 
 ---

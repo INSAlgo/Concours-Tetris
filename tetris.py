@@ -7,7 +7,7 @@ import signal
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
-import argparse, os, platform, random, re, shutil, subprocess, sys
+import argparse, os, platform, random, re, shutil, subprocess, sys, statistics
 
 os.environ["PYTHONASYNCIODEBUG"] = "0"
 import asyncio
@@ -151,6 +151,14 @@ class Player(ABC):
         self.current_piece_name = None
         self.score = 0
         self.pieces_placed = 0
+
+    def reset(self):
+        self.board = [[0 for _ in range(BOARD_HEIGHT)] for _ in range(BOARD_WIDTH)]
+        self.current_piece = None
+        self.current_piece_name = None
+        self.score = 0
+        self.pieces_placed = 0
+        self.alive = True
 
     @abstractmethod
     async def start_game(self):
@@ -484,7 +492,10 @@ class AI(Player):
                     pass
 
         if hasattr(self.prog, "kill") and callable(self.prog.kill):
-            self.prog.kill()
+            try:
+                self.prog.kill()
+            except ProcessLookupError:
+                pass
             try:
                 await asyncio.wait_for(self.prog.wait(), timeout=1)
                 return
@@ -771,6 +782,12 @@ async def main(
         default=42,
         help="random seed for piece sequence (default: 42)",
     )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="number of runs to average over (default: 1)",
+    )
     # Add here any extra argument you need to define the game (board size for example)
 
     args = parser.parse_args(raw_args)
@@ -796,27 +813,50 @@ async def main(
         players.append(Human(len(players)))  # Add extra arguments extracted from `args`
         ai_only = False
 
-    origin_stdout = sys.stdout
-    if args.silent:
-        if not ai_only:
-            output = StringIO("Game cannot be silent since humans are playing")
-            tmp = output.getvalue()
-            await Player.print(output)
-            raise Exception(tmp)
-        if discord:
-            Player.ofunc = None
-        else:
-            sys.stdout = open(os.devnull, "w")
+    scores_per_ai = {player.name: [] for player in players if isinstance(player, AI)}
 
-    players, winner, errors = await game(
-        players, not args.nodebug, seed=args.seed
-    )  # Add extra arguments extracted from `args`
+    for run in range(args.runs):
+        seed = args.seed + run
+        for player in players:
+            player.reset()
+        temp_silent = args.silent or args.runs > 1
+        origin_stdout = sys.stdout
+        if temp_silent:
+            if not ai_only:
+                output = StringIO("Game cannot be silent since humans are playing")
+                tmp = output.getvalue()
+                await Player.print(output)
+                raise Exception(tmp)
+            if discord:
+                Player.ofunc = None
+            else:
+                sys.stdout = open(os.devnull, "w", encoding="utf-8")
+
+        players_run, winner, errors = await game(
+            players, not args.nodebug, seed=seed
+        )
+
+        if temp_silent:
+            sys.stdout = origin_stdout
+            Player.ofunc = ofunc
+
+        for player in players_run:
+            if isinstance(player, AI):
+                scores_per_ai[player.name].append(player.score)
 
     if args.silent:
         sys.stdout = origin_stdout
         Player.ofunc = ofunc
+
+    # Now display
+    if args.runs > 1:
+        await Player.print(f"\n=== AVERAGE RESULTS OVER {args.runs} RUNS ===")
+        for ai_name, scores in scores_per_ai.items():
+            avg = statistics.mean(scores)
+            std = statistics.stdev(scores) if len(scores) > 1 else 0
+            await Player.print(f"{ai_name}: Average {avg:.2f} ± {std:.2f}")
     else:
-        # Display final boards and scores
+        # original display
         await Player.print("\n=== FINAL RESULTS ===")
         for player in players:
             board_display = render_board(player.board, str(player))
@@ -825,22 +865,22 @@ async def main(
                 f"{player} - Final Score: {player.score} | Pieces Placed: {player.pieces_placed}"
             )
 
-    # Sort players by score for ranking
-    sorted_players = sorted(players, key=lambda p: p.score, reverse=True)
+        # Sort players by score for ranking
+        sorted_players = sorted(players, key=lambda p: p.score, reverse=True)
 
-    # Announce winner and rankings
-    if winner:
-        if discord and winner.name.startswith("ai_"):
-            winner.name = winner.name[3:]
+        # Announce winner and rankings
+        if winner:
+            if discord and winner.name.startswith("ai_"):
+                winner.name = winner.name[3:]
 
-        await Player.print(f"\n{winner} wins with {winner.score} points!")
-        await Player.print("\nFinal Rankings:")
-        for i, player in enumerate(sorted_players, 1):
-            await Player.print(
-                f"  {i}. {player} - {player.score} points ({player.pieces_placed} pieces)"
-            )
-    else:
-        await Player.print("\n It's a draw!")
+            await Player.print(f"\n{winner} wins with {winner.score} points!")
+            await Player.print("\nFinal Rankings:")
+            for i, player in enumerate(sorted_players, 1):
+                await Player.print(
+                    f"  {i}. {player} - {player.score} points ({player.pieces_placed} pieces)"
+                )
+        else:
+            await Player.print("\n It's a draw!")
 
     return (
         players,
