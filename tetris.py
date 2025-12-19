@@ -313,6 +313,8 @@ class AI(Player):
         # Once again, you can personnalize how the AI player will be called during the game here
         if discord:
             # if it's through discord, self.name should be the discord user's ID
+            if self.name.startswith("ai_"):
+                self.name = self.name[3:]
             self.rendered_name = f"<@{self.name}>'s AI {self.icon}"
         else:
             self.rendered_name = f"AI {self.icon} ({self.name})"
