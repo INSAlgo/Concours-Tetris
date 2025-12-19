@@ -7,7 +7,7 @@ import signal
 from typing import Callable, Any
 from io import StringIO
 from pathlib import Path
-import argparse, asyncio, os, random, re, sys
+import argparse, asyncio, os, random, re, subprocess, sys
 
 # Tetris game constants
 BOARD_WIDTH = 10
@@ -255,13 +255,20 @@ class AI(Player):
 
         match path.suffix:
             case ".py":
-                return f"python3 {progPath}"
+                command = f"python3 {progPath}"
             case ".js":
-                return f"node {progPath}"
+                command = f"node {progPath}"
             case ".class":
-                return f"java -cp {os.path.dirname(progPath)} {os.path.splitext(os.path.basename(progPath))[0]}"
+                command = f"java -cp {os.path.dirname(progPath)} {os.path.splitext(os.path.basename(progPath))[0]}"
             case _:
-                return f"./{progPath}"
+                command = f"./{progPath}"
+
+        # Security enhancement: Use Firejail sandboxing if available and profile exists
+        if subprocess.run(['which', 'firejail'], capture_output=True).returncode == 0 and os.path.exists('tetris.profile'):
+            command = f"firejail --profile=tetris.profile {command}"
+            print(f'Running command with firejail!')
+
+        return command
 
     def __init__(self, no: int, prog_path: str, discord: bool, **kwargs):
         """The AI player constructor
