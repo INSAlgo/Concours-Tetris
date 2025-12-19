@@ -1,8 +1,3 @@
-Voici une version **dans le même style**, adaptée à un **concours de Tetris en solo** 👇
-Tu peux bien sûr ajuster les détails (scoring, contraintes, dates).
-
----
-
 # Concours Tetris – INSAlgo
 
 Bienvenue à la prestigieuse compétition de **Tetris d’INSAlgo** !
