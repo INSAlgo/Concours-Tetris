@@ -42,7 +42,10 @@ Au début de la partie, votre programme reçoit :
 * Une ligne contenant 2 entiers séparés par un espace :
   `W` la largeur de la grille et `H` la hauteur de la grille.
 
-* Une ligne contenant 2 entiers séparés par un espace : `W` la largeur de la grille et `H` la hauteur de la grille. (Le moteur actuel utilise une grille fixe de **10x20** et envoie donc `10 20` au démarrage.)
+* Une ligne contenant un entier : le nombre de pièces `N`.
+
+* Pour chaque pièce (N lignes suivantes) :
+  - Une ligne contenant le nom de la pièce suivi des coordonnées de sa forme (par exemple : `I 0,0 1,0 2,0 3,0` pour une barre horizontale).
 
 Le moteur gère la séquence des pièces via l'argument `--seed` (même seed pour toutes les IA), mais **la seed n'est pas envoyée** aux programmes participants.
 
@@ -58,7 +61,7 @@ Pour chaque tour :
 
 * Le moteur envoie :
 
-  * Une ligne contenant le **type de la pièce courante** (`I`, `O`, `T`, `S`, `Z`, `J`, `L`).
+  * Une ligne contenant le **nom de la pièce courante**.
     (Remarque : le moteur **n'envoie pas** l'état complet de la grille aux IA — les IA doivent garder leur propre représentation interne du plateau.)
 * Votre programme doit répondre par :
 

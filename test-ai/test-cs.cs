@@ -1,17 +1,39 @@
-// See https://aka.ms/new-console-template for more information
+using System;
 
-string input = Console.ReadLine();
-string[] numbers = input.Split(' ');
-int W = Convert.ToInt32(numbers[0]); 
-int H = Convert.ToInt32(numbers[1]);
-int N = Convert.ToInt32(numbers[2]);
-int S = Convert.ToInt32(numbers[3]);
+class Program
+{
+    static void Main()
+    {
+        // Read WIDTH and HEIGHT from first line
+        string input = Console.ReadLine();
+        string[] parts = input.Split(' ');
+        int W = int.Parse(parts[0]);
+        int H = int.Parse(parts[1]);
 
-if (S==2){
-	Console.ReadLine();
-}
+        // Read number of pieces
+        int numPieces = int.Parse(Console.ReadLine());
 
-while(true){
-	Console.WriteLine(0);
-	Console.ReadLine();
+        // Discard the shape lines
+        for (int i = 0; i < numPieces; i++)
+        {
+            Console.ReadLine();
+        }
+
+        Random rand = new Random();
+
+        string line;
+        while ((line = Console.ReadLine()) != null)
+        {
+            // Parse the piece name from the line
+            string[] pieceParts = line.Split(' ');
+            string pieceName = pieceParts[0];
+
+            // Generate random x (0 to W-1) and rotation (0-3)
+            int x = rand.Next(0, W);
+            int rotation = rand.Next(0, 4);
+
+            // Output the result
+            Console.WriteLine($"{x} {rotation}");
+        }
+    }
 }

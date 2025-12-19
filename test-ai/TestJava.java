@@ -1,4 +1,5 @@
 import java.util.Scanner;
+import java.util.Random;
 
 class TestJava {
 
@@ -6,16 +7,26 @@ class TestJava {
         Scanner scanner = new Scanner(System.in);
         int W = scanner.nextInt();
         int H = scanner.nextInt();
-        int N = scanner.nextInt();
-        int S = scanner.nextInt();
+        scanner.nextLine(); // consume the rest of the line
 
-        if (S == 2) {
+        int numPieces = scanner.nextInt();
+        scanner.nextLine(); // consume the rest of the line
+
+        // Discard the shape lines
+        for (int i = 0; i < numPieces; i++) {
             scanner.nextLine();
         }
 
-        while (true) {
-            System.out.println(0);
-            scanner.nextLine();
+        Random rand = new Random();
+
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            if (line.trim().isEmpty()) continue;
+            String pieceName = line.split("\\s+")[0];
+            // parse the name, but for random AI, not used
+            int x = rand.nextInt(W);
+            int rotation = rand.nextInt(4);
+            System.out.println(x + " " + rotation);
         }
     }
 }

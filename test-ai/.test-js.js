@@ -1,14 +1,34 @@
-//const readline = require("readline");
+const readline = require('readline');
 
-const line = readLine();
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  terminal: false
+});
 
-const stringArray = str.split(/(\s+)/);
+let firstLine = true;
+let W, H;
+let numPieces = null;
+let skipCount = 0;
 
-if(stringArray[2]=="2"){
-  readline();
-}
+rl.on('line', (line) => {
+  if (firstLine) {
+    [W, H] = line.trim().split(/\s+/).map(Number);
+    firstLine = false;
+  } else if (numPieces === null) {
+    numPieces = parseInt(line.trim());
+    skipCount = numPieces;
+  } else if (skipCount > 0) {
+    skipCount--;
+  } else {
+    const piece_name = line.trim().split(/\s+/)[0];
+    // Output random x (0 to W-1) and random rotation (0-3)
+    const x = Math.floor(Math.random() * W);
+    const rotation = Math.floor(Math.random() * 4);
+    console.log(`${x} ${rotation}`);
+  }
+});
 
-while(1){
-  console.log(0)
-  readline();
-}
+rl.on('close', () => {
+  process.exit(0);
+});

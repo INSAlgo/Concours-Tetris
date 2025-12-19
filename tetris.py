@@ -9,7 +9,7 @@ from io import StringIO
 from pathlib import Path
 import argparse, os, platform, random, re, shutil, subprocess, sys
 
-os.environ['PYTHONASYNCIODEBUG'] = '0'
+os.environ["PYTHONASYNCIODEBUG"] = "0"
 import asyncio
 
 # Tetris game constants
@@ -27,35 +27,77 @@ EMOJIS = {
     "L": "🟧",
 }
 
-# Tetris pieces definitions (each piece defined by its coordinates relative to origin)
+# Tetris pieces definitions
 PIECES = {
-    "I": [[(0, 0), (1, 0), (2, 0), (3, 0)]],  # I piece (rotations will be computed)
-    "O": [[(0, 0), (1, 0), (0, 1), (1, 1)]],  # O piece (no rotation needed)
-    "T": [[(1, 0), (0, 1), (1, 1), (2, 1)]],  # T piece
-    "S": [[(1, 0), (2, 0), (0, 1), (1, 1)]],  # S piece
-    "Z": [[(0, 0), (1, 0), (1, 1), (2, 1)]],  # Z piece
-    "J": [[(0, 0), (0, 1), (1, 1), (2, 1)]],  # J piece
-    "L": [[(2, 0), (0, 1), (1, 1), (2, 1)]],  # L piece
+    "I": """
+####
+""",
+    "O": """
+##
+##
+""",
+    "T": """
+ # 
+###
+""",
+    "S": """
+ ##
+## 
+""",
+    "Z": """
+## 
+ ##
+""",
+    "J": """
+#  
+###
+""",
+    "L": """
+  #
+###
+""",
 }
+
+
+def parse_piece(text: str) -> list[tuple[int, int]]:
+    """Parse a text matrix into piece coordinates"""
+    lines = text.strip().split("\n")
+    lines = [line.rstrip() for line in lines if line.strip()]
+    if not lines:
+        return []
+    max_len = max(len(line) for line in lines)
+    shape = []
+    for y, line in enumerate(lines):
+        line = line.ljust(max_len)
+        for x, char in enumerate(line):
+            if char == "#":
+                shape.append((x, y))
+    # Normalize to min coordinates at 0
+    if shape:
+        min_x = min(x for x, y in shape)
+        min_y = min(y for x, y in shape)
+        shape = [(x - min_x, y - min_y) for x, y in shape]
+    return shape
 
 
 # Generate all rotations for pieces
 def generate_rotations():
     rotations = {}
-    for name, shapes in PIECES.items():
+    for name, text in PIECES.items():
+        base = parse_piece(text)
         if name == "O":  # O piece doesn't need rotation
-            rotations[name] = shapes * 4
+            rotations[name] = [base] * 4
         else:
             all_rots = []
-            base = shapes[0]
+            current = base
             for _ in range(4):
-                all_rots.append(base)
+                all_rots.append(current)
                 # Rotate 90 degrees clockwise: (x, y) -> (y, -x)
-                base = [(y, -x) for x, y in base]
+                current = [(y, -x) for x, y in current]
                 # Normalize to have min coordinates at 0
-                min_x = min(x for x, y in base)
-                min_y = min(y for x, y in base)
-                base = [(x - min_x, y - min_y) for x, y in base]
+                min_x = min(x for x, y in current)
+                min_y = min(y for x, y in current)
+                current = [(x - min_x, y - min_y) for x, y in current]
             rotations[name] = all_rots
     return rotations
 
@@ -342,6 +384,17 @@ class AI(Player):
             self.prog.stdin.write(f"{BOARD_WIDTH} {BOARD_HEIGHT}\n".encode())
             await self.drain()
 
+            # Send number of pieces
+            self.prog.stdin.write(f"{len(PIECE_NAMES)}\n".encode())
+            await self.drain()
+
+            # Send each piece's name and base shape coordinates
+            for piece in PIECE_NAMES:
+                base_shape = PIECE_ROTATIONS[piece][0]
+                coords_str = " ".join(f"{x},{y}" for x, y in base_shape)
+                self.prog.stdin.write(f"{piece} {coords_str}\n".encode())
+                await self.drain()
+
     async def lose_game(self):
         await super().lose_game()
 
@@ -408,7 +461,6 @@ class AI(Player):
     async def stop_game(self):
         if not self.prog:
             return
-
 
         # Properly close the pipes to prevent cleanup warnings
         if self.prog.stdin:
