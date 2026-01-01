@@ -468,41 +468,44 @@ class AI(Player):
         if not hasattr(self, "prog") or not self.prog:
             return
 
-        if self.prog.stdin:
-            self.prog.stdin.close()
-            with contextlib.suppress(Exception):
-                # type: ignore
-                self.prog.stdin._transport.__del__() # type: ignore
+        try:
+            if self.prog.stdin:
+                self.prog.stdin.close()
+                with contextlib.suppress(Exception):
+                    # type: ignore
+                    self.prog.stdin._transport.__del__() # type: ignore
 
-        if hasattr(self.prog, "terminate"):
-            with contextlib.suppress(ProcessLookupError):
-                self.prog.terminate()
+            if hasattr(self.prog, "terminate"):
+                with contextlib.suppress(ProcessLookupError):
+                    self.prog.terminate()
+                    try:
+                        await asyncio.wait_for(self.prog.wait(), timeout=1)
+                        return
+                    except asyncio.TimeoutError:
+                        pass
+
+            if hasattr(self.prog, "kill"):
+                with contextlib.suppress(ProcessLookupError):
+                    self.prog.kill()
                 try:
                     await asyncio.wait_for(self.prog.wait(), timeout=1)
                     return
                 except asyncio.TimeoutError:
                     pass
 
-        if hasattr(self.prog, "kill"):
-            with contextlib.suppress(ProcessLookupError):
-                self.prog.kill()
-            try:
-                await asyncio.wait_for(self.prog.wait(), timeout=1)
-                return
-            except asyncio.TimeoutError:
-                pass
-
-        if hasattr(self.prog, "pid") and self.prog.pid is not None:
-            if os.name == "posix":
-                with contextlib.suppress(ProcessLookupError, OSError):
-                    os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
-            else:
-                subprocess.run(["taskkill", "/PID", str(self.prog.pid), "/T", "/F"])
+            if hasattr(self.prog, "pid") and self.prog.pid is not None:
+                if os.name == "posix":
+                    with contextlib.suppress(ProcessLookupError, OSError):
+                        os.killpg(os.getpgid(self.prog.pid), signal.SIGKILL)
+                else:
+                    subprocess.run(["taskkill", "/PID", str(self.prog.pid), "/T", "/F"])
+                
+                with contextlib.suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(self.prog.wait(), timeout=1)
+                    return
+        except Exception as e:
+            print(f"Error while terminating AI process: {e}")
             
-            with contextlib.suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self.prog.wait(), timeout=1)
-                return
-
         raise Exception("Could not kill the AI process")
 
 
@@ -671,44 +674,49 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
         rng = random.Random(seed)
         player.current_piece_name = get_next_piece(rng)
 
-        while player.alive:
-            # Display game state
-            board_display = render_board(player.board, str(player))
-            await Player.print(board_display)
-            await Player.print(f"Current piece: {player.current_piece_name}")
-            await Player.print(f"Score: {player.score} | Pieces placed: {player.pieces_placed}")
+        try:
+            while player.alive:
+                # Display game state
+                board_display = render_board(player.board, str(player))
+                await Player.print(board_display)
+                await Player.print(f"Current piece: {player.current_piece_name}")
+                await Player.print(f"Score: {player.score} | Pieces placed: {player.pieces_placed}")
 
-            # Get move from player
-            user_input, error = None, None
-            while not user_input:
-                user_input, error = await player.ask_move(
-                    debug=debug,
-                    current_piece=player.current_piece_name,
-                    board=player.board,
-                )
-                # Break immediately on critical errors or AI failure
-                if isinstance(player, AI) or error in ("user interrupt", "timeout"):
-                    break
+                # Get move from player
+                user_input, error = None, None
+                while not user_input:
+                    user_input, error = await player.ask_move(
+                        debug=debug,
+                        current_piece=player.current_piece_name,
+                        board=player.board,
+                    )
+                    # Break immediately on critical errors or AI failure
+                    if isinstance(player, AI) or error in ("user interrupt", "timeout"):
+                        break
 
-            # Handle move result
-            if not user_input:
-                await player.lose_game()
-                errors[player] = error
-                player.alive = False
-            else:
-                x, rotation = user_input
-                lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation)
+                # Handle move result
+                if not user_input:
+                    await player.lose_game()
+                    errors[player] = error
+                    player.alive = False
+                else:
+                    x, rotation = user_input
+                    lines_cleared = place_piece(player.board, player.current_piece_name, x, rotation)
 
-                # Update score based on lines cleared
-                if lines_cleared > 0:
-                    line_points = CLEARING_SCORE[lines_cleared-1]
-                    player.score += line_points
-                    await Player.print(f"{player} cleared {lines_cleared} line(s)! (+{line_points} points)")
+                    # Update score based on lines cleared
+                    if lines_cleared > 0:
+                        line_points = CLEARING_SCORE[lines_cleared-1]
+                        player.score += line_points
+                        await Player.print(f"{player} cleared {lines_cleared} line(s)! (+{line_points} points)")
 
-                # Base score for placing a piece
-                player.score += 1
-                player.pieces_placed += 1
-                player.current_piece_name = get_next_piece(rng)
+                    # Base score for placing a piece
+                    player.score += 1
+                    player.pieces_placed += 1
+                    player.current_piece_name = get_next_piece(rng)
+        except Exception as e:
+            await Player.print(f"An error occurred for {player}: {e}")
+            errors[player] = "error"
+            player.alive = False
 
     # Run all games in parallel
     await asyncio.gather(*[play_solo_game(player) for player in players])
