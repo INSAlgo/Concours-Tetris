@@ -705,7 +705,10 @@ async def game(players: list[Human | AI], debug: bool, **kwargs) -> tuple[list[H
 
                     # Update score based on lines cleared
                     if lines_cleared > 0:
-                        line_points = CLEARING_SCORE[lines_cleared-1]
+                        if lines_cleared <= 4:
+                            line_points = CLEARING_SCORE[lines_cleared-1]
+                        else:
+                            line_points = 800 + (lines_cleared - 4) * 300
                         player.score += line_points
                         await Player.print(f"{player} cleared {lines_cleared} line(s)! (+{line_points} points)")
 
